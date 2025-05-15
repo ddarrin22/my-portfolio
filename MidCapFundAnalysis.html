@@ -153,7 +153,7 @@
                   <Recharts.Tooltip cursor={{ strokeDasharray: '3 3' }} />
                   <Recharts.Scatter name="Funds" data={scatterData} fill="#3b82f6">
                     {scatterData.map((entry, index) => (
-                      <Recharts.Cell key={`cell-${index}`} fill={entry.returns > 13.93 ? '#10b981' : '#ef4444'} />
+                      <Recharts.Cell key={`cell-${index}`} fill="#3b82f6" />
                     ))}
                   </Recharts.Scatter>
                 </Recharts.ScatterChart>
