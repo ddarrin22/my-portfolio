@@ -1,0 +1,245 @@
+<!-- Setting up the HTML structure with CDN dependencies -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mid-Cap Growth Fund Analysis Report</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PropTypes, React, ReactDOM, Babel, PapaParse, Chrono, Recharts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chrono-node/1.3.11/chrono.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.15.0/Recharts.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+  <div id="root" class="container mx-auto p-6"></div>
+
+  <!-- Rendering the React app with JSX -->
+  <script type="text/babel">
+    // Initializing React root
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+
+    // Defining number abbreviation function
+    const abbreviateNumber = (num) => {
+      if (isNaN(num) || num === null) return '0';
+      const absNum = Math.abs(num);
+      if (absNum >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+      if (absNum >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+      return num.toFixed(1);
+    };
+
+    // Defining App component
+    const App = () => {
+      const [data, setData] = React.useState(null);
+      const [loading, setLoading] = React.useState(true);
+
+      // Loading and processing CSV data
+      React.useEffect(() => {
+        const csvData = loadFileData('DDD Mid Cap Fund Analysis.csv');
+        Papa.parse(csvData, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: false,
+          transformHeader: (header) => header.trim().replace(/^"|"$/g, ''),
+          transform: (value, header) => {
+            let cleaned = value.trim().replace(/^"|"$/g, '');
+            if (['Firm Net Assets ($ billions)', 'Broad Portfolio Net Assets ($ millions)', 'Share Class Net Assets ($ millions)', 'NAV/Price ($)', 'Portfolio Turnover (%)', 'Expense Ratio (%)', 'P/E Ratio (forward 12 mo.)', 'Active Share', 'Average Team Tenure (years)', 'Avg. Market Cap ($ billions, unweighted)', 'Top 5 Holdings (%)', 'Top 10 Holdings (%)', 'Top 20 Holdings (%)', 'Number of Equity Holdings', 'Asset Allocation (% equity)', 'Portfolio Share in Mid Cap Market (%)', 'Basic Materials', 'Consumer Cyclical', 'Financial Services', 'Real Estate', 'Communication Services', 'Energy', 'Industrials', 'Technology', 'Consumer Defensive', 'Healthcare', 'Utilities', 'Alpha 3 Year', 'Alpha 5 Year', 'Alpha 10 Year', 'Beta 3 Year', 'Beta 5 Year', 'Beta 10 Year', 'R-Squared 3 Year', 'R-Squared 5 Year', 'R-Squared 10 Year', 'Sharpe Ratio 3 Year', 'Sharpe Ratio 5 Year', 'Sharpe Ratio 10 Year', 'Standard Deviation 3 Year', 'Standard Deviation 5 Year', 'Standard Deviation 10 Year', 'Trailing Returns 3 Month', 'Trailing Returns YTD', 'Trailing Returns 1 Year', 'Trailing Returns 3 Year', 'Trailing Returns 5 Year', 'Trailing Returns 10 Year', 'Total Returns 2015', 'Total Returns 2016', 'Total Returns 2017', 'Total Returns 2018', 'Total Returns 2019', 'Total Returns 2020', 'Total Returns 2021', 'Total Returns 2022', 'Total Returns 2023', 'Total Returns 2024'].includes(header)) {
+              return cleaned === '' || isNaN(parseFloat(cleaned)) ? 0 : parseFloat(cleaned);
+            }
+            return cleaned;
+          },
+          complete: (results) => {
+            const cleanedData = results.data.map(row => ({
+              ...row,
+              'Firm Net Assets ($ billions)': parseFloat(row['Firm Net Assets ($ billions)']) || 0,
+              'Broad Portfolio Net Assets ($ millions)': parseFloat(row['Broad Portfolio Net Assets ($ millions)']) || 0,
+              'Trailing Returns 5 Year': parseFloat(row['Trailing Returns 5 Year']) || 0,
+              'Sharpe Ratio 5 Year': parseFloat(row['Sharpe Ratio 5 Year']) || 0,
+              'Expense Ratio (%)': parseFloat(row['Expense Ratio (%)']) || 0,
+              'Technology': parseFloat(row['Technology']) || 0,
+              'Industrials': parseFloat(row['Industrials']) || 0,
+              'Top 10 Holdings (%)': parseFloat(row['Top 10 Holdings (%)']) || 0,
+              'Number of Equity Holdings': parseFloat(row['Number of Equity Holdings']) || 0,
+            }));
+            setData(cleanedData);
+            setLoading(false);
+          },
+          error: (err) => {
+            console.error('CSV Parsing Error:', err);
+            setLoading(false);
+          }
+        });
+      }, []);
+
+      // Rendering loading state
+      if (loading) {
+        return (
+          <div className="text-center text-xl font-semibold text-gray-600 py-10">
+            Loading data...
+          </div>
+        );
+      }
+
+      // Filtering funds for visualizations (excluding benchmarks)
+      const funds = data.filter(row => row['Fund Name'] !== 'Benchmark' && row['Fund Name'] !== 'US Mid Broad Growth Index');
+
+      // Preparing data for 5-year returns vs. Sharpe ratio scatter plot
+      const scatterData = funds.map(row => ({
+        name: row['Ticker'],
+        returns: row['Trailing Returns 5 Year'],
+        sharpe: row['Sharpe Ratio 5 Year'],
+      }));
+
+      // Preparing data for sector allocations (Technology and Industrials)
+      const sectorData = funds.map(row => ({
+        name: row['Ticker'],
+        Technology: row['Technology'],
+        Industrials: row['Industrials'],
+      }));
+
+      // Preparing data for expense ratio vs. returns
+      const expenseData = funds.map(row => ({
+        name: row['Ticker'],
+        expense: row['Expense Ratio (%)'],
+        returns: row['Trailing Returns 5 Year'],
+      }));
+
+      // Rendering the report
+      return (
+        <div className="bg-white shadow-lg rounded-lg p-8">
+          {/* Header */}
+          <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+            Mid-Cap Growth Equity Fund Analysis
+          </h1>
+          <p className="text-gray-600 mb-8 text-center">
+            Analysis of mid-cap growth funds to identify strategies for outperforming the US Mid Broad Growth Index.
+          </p>
+
+          {/* Summary Section */}
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">Summary</h2>
+            <p className="text-gray-600 mb-4">
+              The analysis of 11 mid-cap growth equity funds reveals that top performers, such as Fidelity Investments (FSKGX) and Vanguard (VMGIX), achieve 5-year returns above the US Mid Broad Growth Index (13.93%) by overweighting Technology (25–30%) and Industrials (20–25%), maintaining moderate portfolio concentration (Top 10 Holdings: 17–25%), and keeping expense ratios low (&lt;0.5%). High active share and selective holdings (80–150) enable outperformance, while balanced risk profiles (beta: 1.0–1.2, Sharpe ratio: &gt;0.5) ensure stability.
+            </p>
+            <p className="text-gray-600 font-semibold">
+              Interesting Fact: FSKGX’s high beta (2.24) reflects aggressive positioning, yet its 15.33% 5-year return and 0.56 Sharpe ratio highlight the reward of selective Technology bets, especially in 2020 (29.53% return).
+            </p>
+          </section>
+
+          {/* Visualization 1: 5-Year Returns vs. Sharpe Ratio */}
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">5-Year Returns vs. Sharpe Ratio</h2>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <Recharts.ResponsiveContainer width="100%" height={400}>
+                <Recharts.ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                  <Recharts.CartesianGrid strokeDasharray="3 3" />
+                  <Recharts.XAxis
+                    dataKey="returns"
+                    name="5-Year Returns (%)"
+                    label={{ value: '5-Year Returns (%)', position: 'bottom', offset: 0 }}
+                    fontSize={12}
+                  />
+                  <Recharts.YAxis
+                    dataKey="sharpe"
+                    name="Sharpe Ratio"
+                    label={{ value: 'Sharpe Ratio', angle: -90, position: 'left', offset: 10 }}
+                    fontSize={12}
+                  />
+                  <Recharts.Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                  <Recharts.Scatter name="Funds" data={scatterData} fill="#3b82f6">
+                    {scatterData.map((entry, index) => (
+                      <Recharts.Cell key={`cell-${index}`} fill={entry.returns > 13.93 ? '#10b981' : '#ef4444'} />
+                    ))}
+                  </Recharts.Scatter>
+                </Recharts.ScatterChart>
+              </Recharts.ResponsiveContainer>
+            </div>
+            <p className="text-gray-600 mt-4">
+              Funds above the benchmark’s 13.93% return (green dots) like FSKGX and VMGIX show strong risk-adjusted returns (Sharpe ratio &gt;0.5).
+            </p>
+          </section>
+
+          {/* Visualization 2: Sector Allocations */}
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">Sector Allocations (Technology & Industrials)</h2>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <Recharts.ResponsiveContainer width="100%" height={400}>
+                <Recharts.BarChart data={sectorData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                  <Recharts.CartesianGrid strokeDasharray="3 3" />
+                  <Recharts.XAxis dataKey="name" label={{ value: 'Fund Ticker', position: 'bottom', offset: 0 }} fontSize={12} />
+                  <Recharts.YAxis label={{ value: 'Allocation (%)', angle: -90, position: 'left', offset: 10 }} fontSize={12} />
+                  <Recharts.Tooltip />
+                  <Recharts.Legend />
+                  <Recharts.Bar dataKey="Technology" fill="#3b82f6" />
+                  <Recharts.Bar dataKey="Industrials" fill="#10b981" />
+                </Recharts.BarChart>
+              </Recharts.ResponsiveContainer>
+            </div>
+            <p className="text-gray-600 mt-4">
+              Top performers allocate 25–30% to Technology and 20–25% to Industrials, driving growth while maintaining stability.
+            </p>
+          </section>
+
+          {/* Visualization 3: Expense Ratio vs. Returns */}
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">Expense Ratio vs. 5-Year Returns</h2>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <Recharts.ResponsiveContainer width="100%" height={400}>
+                <Recharts.ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                  <Recharts.CartesianGrid strokeDasharray="3 3" />
+                  <Recharts.XAxis
+                    dataKey="expense"
+                    name="Expense Ratio (%)"
+                    label={{ value: 'Expense Ratio (%)', position: 'bottom', offset: 0 }}
+                    fontSize={12}
+                  />
+                  <Recharts.YAxis
+                    dataKey="returns"
+                    name="5-Year Returns (%)"
+                    label={{ value: '5-Year Returns (%)', angle: -90, position: 'left', offset: 10 }}
+                    fontSize={12}
+                  />
+                  <Recharts.Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                  <Recharts.Scatter name="Funds" data={expenseData} fill="#3b82f6">
+                    {expenseData.map((entry, index) => (
+                      <Recharts.Cell key={`cell-${index}`} fill={entry.expense < 0.5 ? '#10b981' : '#ef4444'} />
+                    ))}
+                  </Recharts.Scatter>
+                </Recharts.ScatterChart>
+              </Recharts.ResponsiveContainer>
+            </div>
+            <p className="text-gray-600 mt-4">
+              Funds with expense ratios below 0.5% (green dots) like VMGIX (0.19%) achieve higher net returns.
+            </p>
+          </section>
+
+          {/* Conclusion */}
+          <section>
+            <h2 className="text-2xl font-semibold text-gray-700 mb-4">Conclusion & Recommendation</h2>
+            <p className="text-gray-600 mb-4">
+              To win the mandate, the hedge fund should target a 5-year annualized return of 15–16% by:
+            </p>
+            <ul className="list-disc list-inside text-gray-600 mb-4">
+              <li>Allocating 28–30% to Technology, 20–22% to Industrials, and 10–12% to Healthcare.</li>
+              <li>Maintaining 80–120 holdings with 20–25% in the top 10 for high-conviction bets.</li>
+              <li>Keeping expense ratios below 0.5% and turnover below 40%.</li>
+              <li>Achieving a beta of 1.0–1.2 and Sharpe ratio above 0.55 through active management (active share &gt;80%).</li>
+            </ul>
+            <p className="text-gray-600 font-semibold">
+              By emulating the strategies of FSKGX and VMGIX, the fund can outperform the US Mid Broad Growth Index while managing risk effectively.
+            </p>
+          </section>
+        </div>
+      );
+    };
+
+    // Rendering the app
+    root.render(<App />);
+  </script>
+</body>
+</html>
